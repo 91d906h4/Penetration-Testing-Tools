@@ -16,9 +16,7 @@ python slowloris.py example.com
 ## Configuration Options
 
 ```
-usage: import argparse.py [-h] [-p] [-s] [-v] [-ua] [--https] [--use-proxy] [--sleeptime] [--proxy-host]
-                          [--proxy-port]
-                          [host]
+usage: import argparse.py [-h] [-p] [-s] [-v] [-ua] [--https] [--use-proxy] [--sleeptime] [--proxy-host] [--proxy-port] [host]
 
 Slowloris, low bandwidth stress test tool for websites.
 
