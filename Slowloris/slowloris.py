@@ -64,7 +64,7 @@ parser.add_argument(
     metavar="",
     default=15,
     type=int,
-    help="Time to sleep between each header sent.",
+    help="Time to sleep between each header sent (default 15).",
 )
 parser.add_argument(
     "--proxy-host",
